@@ -1,0 +1,128 @@
+{
+  "sadaabahaar": {
+    "title": "Sadaabahaar",
+    "subtitle": "The Evergreen Era",
+    "tracks": [
+      {
+        "id": "sb-1",
+        "title": "Lag Jaa Gale",
+        "artist": "Lata Mangeshkar",
+        "album": "Woh Kaun Thi",
+        "year": 1964,
+        "cover": "/covers/sadaabahaar/lag-jaa-gale.jpg",
+        "audioSrc": "/audio/sadaabahaar/lag-jaa-gale.mp3"
+      },
+      {
+        "id": "sb-2",
+        "title": "Roop Tera Mastana",
+        "artist": "Kishore Kumar",
+        "album": "Aradhana",
+        "year": 1969,
+        "cover": "/covers/sadaabahaar/roop-tera-mastana.jpg",
+        "audioSrc": "/audio/sadaabahaar/roop-tera-mastana.mp3"
+      },
+      {
+        "id": "sb-3",
+        "title": "Pal Pal Dil Ke Paas",
+        "artist": "Kishore Kumar",
+        "album": "Blackmail",
+        "year": 1973,
+        "cover": "/covers/sadaabahaar/pal-pal-dil-ke-paas.jpg",
+        "audioSrc": "/audio/sadaabahaar/pal-pal-dil-ke-paas.mp3"
+      },
+      {
+        "id": "sb-4",
+        "title": "Chura Liya Hai Tumne",
+        "artist": "Asha Bhosle, Mohammed Rafi",
+        "album": "Yaadon Ki Baaraat",
+        "year": 1973,
+        "cover": "/covers/sadaabahaar/chura-liya.jpg",
+        "audioSrc": "/audio/sadaabahaar/chura-liya.mp3"
+      }
+    ]
+  },
+  "yaadein": {
+    "title": "Yaadein",
+    "subtitle": "The 90s Rewind",
+    "tracks": [
+      {
+        "id": "yd-1",
+        "title": "Tujhe Dekha To",
+        "artist": "Lata Mangeshkar, Kumar Sanu",
+        "album": "Dilwale Dulhania Le Jayenge",
+        "year": 1995,
+        "cover": "/covers/yaadein/tujhe-dekha-to.jpg",
+        "audioSrc": "/audio/yaadein/tujhe-dekha-to.mp3"
+      },
+      {
+        "id": "yd-2",
+        "title": "Chaiyya Chaiyya",
+        "artist": "Sukhwinder Singh, Sapna Awasthi",
+        "album": "Dil Se",
+        "year": 1998,
+        "cover": "/covers/yaadein/chaiyya-chaiyya.jpg",
+        "audioSrc": "/audio/yaadein/chaiyya-chaiyya.mp3"
+      },
+      {
+        "id": "yd-3",
+        "title": "Tanha Tanha",
+        "artist": "Alka Yagnik",
+        "album": "Rangeela",
+        "year": 1995,
+        "cover": "/covers/yaadein/tanha-tanha.jpg",
+        "audioSrc": "/audio/yaadein/tanha-tanha.mp3"
+      },
+      {
+        "id": "yd-4",
+        "title": "Kabhi Na Kabhi",
+        "artist": "Udit Narayan",
+        "album": "Judaai",
+        "year": 1997,
+        "cover": "/covers/yaadein/kabhi-na-kabhi.jpg",
+        "audioSrc": "/audio/yaadein/kabhi-na-kabhi.mp3"
+      }
+    ]
+  },
+  "naya-daur": {
+    "title": "Naya Daur",
+    "subtitle": "The New Wave",
+    "tracks": [
+      {
+        "id": "nd-1",
+        "title": "Kesariya",
+        "artist": "Arijit Singh",
+        "album": "Brahmastra",
+        "year": 2022,
+        "cover": "/covers/naya-daur/kesariya.jpg",
+        "audioSrc": "/audio/naya-daur/kesariya.mp3"
+      },
+      {
+        "id": "nd-2",
+        "title": "Excuses",
+        "artist": "AP Dhillon",
+        "album": "Single",
+        "year": 2021,
+        "cover": "/covers/naya-daur/excuses.jpg",
+        "audioSrc": "/audio/naya-daur/excuses.mp3"
+      },
+      {
+        "id": "nd-3",
+        "title": "Apna Bana Le",
+        "artist": "Arijit Singh, Sachin-Jigar",
+        "album": "Bhediya",
+        "year": 2022,
+        "cover": "/covers/naya-daur/apna-bana-le.jpg",
+        "audioSrc": "/audio/naya-daur/apna-bana-le.mp3"
+      },
+      {
+        "id": "nd-4",
+        "title": "Kya Baat Ay",
+        "artist": "Harrdy Sandhu",
+        "album": "Single",
+        "year": 2018,
+        "cover": "/covers/naya-daur/kya-baat-ay.jpg",
+        "audioSrc": "/audio/naya-daur/kya-baat-ay.mp3"
+      }
+    ]
+  }
+}
