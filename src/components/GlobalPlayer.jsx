@@ -1,113 +1,137 @@
 import React, { useEffect } from 'react';
-import { useAudio } from '../context/AudioContext';
-import { Play, Pause, SkipForward, SkipBack, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Play, Pause, SkipBack, SkipForward, X, Music } from 'lucide-react';
+import { useAudio } from '../context/AudioContext';
+
+const formatTime = (timeInSeconds) => {
+  if (isNaN(timeInSeconds) || timeInSeconds === 0) return "0:00";
+  const minutes = Math.floor(timeInSeconds / 60);
+  const seconds = Math.floor(timeInSeconds % 60);
+  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+};
 
 export default function GlobalPlayer() {
-  const { 
-    currentTrack, isPlaying, togglePlay, nextTrack, prevTrack, stopTrack,
-    currentTime, duration, seek 
+  const {
+    currentTrack,
+    isPlaying,
+    currentTime,
+    duration,
+    togglePlay,
+    playNext,
+    playPrevious,
+    seek,
+    seekBy,
+    closePlayer
   } = useAudio();
 
+  // Attach global keyboard shortcuts for the player
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-      if (!currentTrack) return;
+      // Don't trigger if the user happens to be typing in an input field somewhere
+      if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
 
-      switch (e.code) {
-        case "Space":
-          e.preventDefault(); 
-          togglePlay();
-          break;
-        case "ArrowRight":
-          e.preventDefault();
-          seek(Math.min(currentTime + 5, duration));
-          break;
-        case "ArrowLeft":
-          e.preventDefault();
-          seek(Math.max(currentTime - 5, 0));
-          break;
-        default:
-          break;
+      if (e.key === 'ArrowRight') {
+        seekBy(5);
+        e.preventDefault(); // Prevents the browser from scrolling
+      } else if (e.key === 'ArrowLeft') {
+        seekBy(-5);
+        e.preventDefault();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [togglePlay, currentTrack, currentTime, duration, seek]);
+  }, [seekBy]);
 
-  const formatTime = (time) => {
-    if (isNaN(time)) return "0:00";
-    const mins = Math.floor(time / 60);
-    const secs = Math.floor(time % 60);
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  if (!currentTrack) return null;
+
+  const handleSliderChange = (e) => {
+    seek(Number(e.target.value));
   };
 
   return (
     <AnimatePresence>
-      {currentTrack && (
-        <motion.div
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 100, opacity: 0 }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-3xl bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl ring-1 ring-black/5 p-4 flex flex-col z-50"
-        >
-          
-          <div className="flex items-center justify-between w-full gap-3 sm:gap-6">
-            
-            {/* 1. Track Info: Vertically centered without the artist name */}
-            <div className="flex flex-1 items-center gap-4 min-w-0">
-              <div className="w-12 h-12 rounded-xl flex-shrink-0 shadow-inner bg-gradient-to-br from-[#F6E7D8] to-[#EADCF6] flex items-center justify-center text-[#8E82E3] font-bold text-lg">
-                ♪
-              </div>
-              <div className="flex flex-col min-w-0 justify-center">
-                <h4 className="font-bold text-slate-800 text-sm leading-tight break-words pr-2">
-                  {currentTrack.title}
-                </h4>
-              </div>
+      <motion.div
+        initial={{ y: 80, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 80, opacity: 0 }}
+        transition={{ type: "spring", damping: 25, stiffness: 250 }}
+        className="fixed bottom-4 inset-x-4 md:inset-x-auto md:left-1/2 md:-translate-x-1/2 md:w-[540px] z-50 bg-[#F0F4FA]/95 backdrop-blur-2xl rounded-3xl p-4 md:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.35)] border border-white/80 ring-1 ring-black/5"
+      >
+        <div className="flex items-center justify-between gap-3">
+          {/* Track Information */}
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#E8E0FA] to-[#D5CBFA] flex items-center justify-center text-[#8E82E3] shrink-0 shadow-inner">
+              <Music className="w-6 h-6" />
             </div>
-
-            {/* 2. Controls */}
-            <div className="flex-shrink-0 flex items-center justify-center gap-3 sm:gap-6">
-              <button onClick={prevTrack} className="text-slate-600 hover:text-[#8E82E3] transition-colors">
-                <SkipBack size={20} />
-              </button>
-              <button onClick={togglePlay} className="w-10 h-10 flex items-center justify-center bg-[#8E82E3] text-white rounded-full shadow-md hover:scale-105 transition-transform">
-                {isPlaying ? <Pause size={20} /> : <Play size={20} className="ml-1" />}
-              </button>
-              <button onClick={nextTrack} className="text-slate-600 hover:text-[#8E82E3] transition-colors">
-                <SkipForward size={20} />
-              </button>
-            </div>
-
-            {/* 3. Close Button */}
-            <div className="flex justify-end ml-1 sm:ml-2">
-              <button onClick={stopTrack} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all flex-shrink-0">
-                <X size={20} />
-              </button>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-sm font-bold text-slate-800 truncate leading-snug">
+                {currentTrack.title}
+              </h4>
+              <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                Safar Music
+              </p>
             </div>
           </div>
 
-          {/* Timeline */}
-          <div className="flex items-center gap-3 mt-3 w-full px-2">
-            <span className="text-xs font-semibold text-slate-400 w-10 text-right">
-              {formatTime(currentTime)}
-            </span>
-            <input 
-              type="range" 
-              min={0} 
-              max={duration || 100} 
-              value={currentTime} 
-              onChange={(e) => seek(Number(e.target.value))}
-              className="flex-1 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#8E82E3]"
-            />
-            <span className="text-xs font-semibold text-slate-400 w-10">
-              {formatTime(duration)}
-            </span>
-          </div>
+          {/* Player Buttons */}
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            {/* Previous Button */}
+            <button
+              onClick={playPrevious}
+              className="p-2 text-slate-600 hover:text-slate-900 active:scale-95 transition-all rounded-full hover:bg-black/5"
+              title="Previous Track"
+            >
+              <SkipBack className="w-5 h-5 fill-current" />
+            </button>
 
-        </motion.div>
-      )}
+            {/* Play / Pause Toggle Button */}
+            <button
+              onClick={togglePlay}
+              className="w-11 h-11 rounded-full bg-gradient-to-tr from-[#8E82E3] to-[#7162CA] text-white flex items-center justify-center shadow-md hover:scale-105 active:scale-95 transition-all"
+              title={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? (
+                <Pause className="w-5 h-5 fill-current" />
+              ) : (
+                <Play className="w-5 h-5 fill-current ml-0.5" />
+              )}
+            </button>
+
+            {/* Next Button */}
+            <button
+              onClick={playNext}
+              className="p-2 text-slate-600 hover:text-slate-900 active:scale-95 transition-all rounded-full hover:bg-black/5"
+              title="Next Track"
+            >
+              <SkipForward className="w-5 h-5 fill-current" />
+            </button>
+
+            {/* Close Player Button */}
+            <button
+              onClick={closePlayer}
+              className="p-2 text-slate-400 hover:text-slate-700 active:scale-95 transition-all rounded-full hover:bg-black/5 ml-1"
+              title="Close Player"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Timeline / Progress Bar */}
+        <div className="mt-3 flex items-center gap-3 text-[11px] font-semibold text-slate-500">
+          <span>{formatTime(currentTime)}</span>
+          <input
+            type="range"
+            min="0"
+            max={duration || 100}
+            value={currentTime}
+            onChange={handleSliderChange}
+            className="flex-1 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#8E82E3]"
+          />
+          <span>{formatTime(duration)}</span>
+        </div>
+      </motion.div>
     </AnimatePresence>
   );
 }

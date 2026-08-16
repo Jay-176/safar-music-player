@@ -1,179 +1,205 @@
-import React, { createContext, useState, useRef, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 
 export const AudioContext = createContext();
 
 export const useAudio = () => useContext(AudioContext);
 
-const loadSavedState = (key, defaultValue) => {
-  try {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : defaultValue;
-  } catch (e) {
-    return defaultValue;
-  }
-};
-
 export const AudioProvider = ({ children }) => {
-  const [playlist, setPlaylist] = useState(() => loadSavedState('safar_playlist', []));
-  const [currentIndex, setCurrentIndex] = useState(() => loadSavedState('safar_currentIndex', 0));
-  const [currentTrack, setCurrentTrack] = useState(() => loadSavedState('safar_currentTrack', null));
+  const [currentTrack, setCurrentTrack] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  
+  const [playlist, setPlaylist] = useState([]); // Active Queue
+  const [currentIndex, setCurrentIndex] = useState(-1); // -1 means playing from library
+  const [eraTracks, setEraTracks] = useState([]); 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  
+
   const audioRef = useRef(new Audio());
-  const isInitialMount = useRef(true);
 
+  // Load persistent queue from local storage
   useEffect(() => {
-    localStorage.setItem('safar_playlist', JSON.stringify(playlist));
-    localStorage.setItem('safar_currentIndex', JSON.stringify(currentIndex));
-    localStorage.setItem('safar_currentTrack', JSON.stringify(currentTrack));
-  }, [playlist, currentIndex, currentTrack]);
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      localStorage.setItem('safar_currentTime', audioRef.current.currentTime);
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    const savedQueue = localStorage.getItem('safarQueue');
+    if (savedQueue) {
+      try {
+        setPlaylist(JSON.parse(savedQueue));
+      } catch (e) {
+        console.error("Failed to parse saved queue", e);
+      }
+    }
   }, []);
 
+  // Save queue changes to local storage
   useEffect(() => {
-    if (currentTrack) {
-      document.title = `${isPlaying ? "▶" : "⏸"} ${currentTrack.title} - Safar`;
-    } else {
-      document.title = "Safar - A Musical Journey";
-    }
-  }, [currentTrack, isPlaying]);
+    localStorage.setItem('safarQueue', JSON.stringify(playlist));
+  }, [playlist]);
 
+  // Handle track source changes
   useEffect(() => {
-    if (currentTrack) {
-      audioRef.current.src = currentTrack.src;
-      
-      if (isInitialMount.current) {
-        const savedTime = localStorage.getItem('safar_currentTime');
-        if (savedTime) {
-          audioRef.current.currentTime = parseFloat(savedTime);
-          setCurrentTime(parseFloat(savedTime));
-        }
-        isInitialMount.current = false;
-      } else {
-        audioRef.current.play().catch(err => console.error("Playback prevented:", err));
-        setIsPlaying(true);
-      }
-    } else {
-      isInitialMount.current = false;
+    const audio = audioRef.current;
+
+    if (currentTrack?.src) {
+      audio.src = currentTrack.src;
+      audio.load();
+      audio.play()
+        .then(() => setIsPlaying(true))
+        .catch((err) => {
+          console.warn("Autoplay prevented or audio source error:", err);
+          setIsPlaying(false);
+        });
     }
+
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleLoadedMetadata = () => setDuration(audio.duration || 0);
+    const handleEnded = () => playNext();
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('ended', handleEnded);
+    };
   }, [currentTrack]);
 
-  useEffect(() => {
-    if (currentTrack && !isInitialMount.current) {
-      if (isPlaying) {
-        audioRef.current.play().catch(err => console.error("Playback prevented:", err));
-      } else {
-        audioRef.current.pause();
-      }
+  const togglePlay = () => {
+    const audio = audioRef.current;
+    if (!currentTrack) return;
+
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+    } else {
+      audio.play()
+        .then(() => setIsPlaying(true))
+        .catch(console.error);
     }
-  }, [isPlaying]); 
+  };
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    const updateTime = () => setCurrentTime(audio.currentTime);
-    const updateDuration = () => setDuration(audio.duration);
-    
-    audio.addEventListener('timeupdate', updateTime);
-    audio.addEventListener('loadedmetadata', updateDuration);
-    
-    return () => {
-      audio.removeEventListener('timeupdate', updateTime);
-      audio.removeEventListener('loadedmetadata', updateDuration);
-    };
-  }, []);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    const handleEnded = () => {
-      if (currentIndex < playlist.length - 1) {
-        nextTrack();
-      } else {
-        setIsPlaying(false);
-      }
-    };
-    
-    audio.addEventListener('ended', handleEnded);
-    return () => audio.removeEventListener('ended', handleEnded);
-  }, [currentIndex, playlist]);
-
-  const togglePlay = () => setIsPlaying(prev => !prev);
-
-  const playTrack = (track) => {
-    setPlaylist([track]);
-    setCurrentIndex(0);
+  const playTrack = (track, currentEraTracks = []) => {
     setCurrentTrack(track);
+    if (currentEraTracks.length > 0) {
+      setEraTracks(currentEraTracks);
+    }
+    setCurrentIndex(-1);
   };
 
   const addToQueue = (track) => {
-    if (!currentTrack) {
-      playTrack(track);
-      return;
-    }
-    setPlaylist(prev => [...prev, track]);
+    setPlaylist((prev) => [...prev, track]);
   };
 
   const removeFromQueue = (index) => {
-    setPlaylist(prev => {
-      const newPlaylist = [...prev];
-      newPlaylist.splice(index, 1);
-      return newPlaylist;
-    });
-    if (index < currentIndex) {
-      setCurrentIndex(prev => prev - 1);
+    setPlaylist((prev) => prev.filter((_, i) => i !== index));
+    if (currentIndex === index) {
+      closePlayer();
+    } else if (currentIndex > index) {
+      setCurrentIndex(currentIndex - 1);
     }
   };
 
   const playQueueTrack = (index) => {
-    setCurrentIndex(index);
-    setCurrentTrack(playlist[index]);
-    setIsPlaying(true);
-  };
-
-  const nextTrack = () => {
-    if (currentIndex < playlist.length - 1) {
-      const nextIndex = currentIndex + 1;
-      setCurrentIndex(nextIndex);
-      setCurrentTrack(playlist[nextIndex]);
+    if (playlist[index]) {
+      setCurrentIndex(index);
+      setCurrentTrack(playlist[index]);
     }
   };
 
-  const prevTrack = () => {
-    if (currentIndex > 0) {
-      const prevIndex = currentIndex - 1;
-      setCurrentIndex(prevIndex);
-      setCurrentTrack(playlist[prevIndex]);
+  const playNext = () => {
+    // 1. Always check the Active Queue first
+    if (playlist.length > 0) {
+      if (currentIndex === -1) {
+        // If playing from library, jump into the first song of the queue
+        playQueueTrack(0);
+        return;
+      } else if (currentIndex < playlist.length - 1) {
+        // If already in queue, go to the next song in the queue
+        playQueueTrack(currentIndex + 1);
+        return;
+      }
+    }
+
+    // 2. If queue is empty OR we finished the queue, play next from Era Library
+    if (eraTracks.length > 0 && currentTrack) {
+      const currentIdx = eraTracks.findIndex((t) => t.id === currentTrack.id);
+      if (currentIdx !== -1 && currentIdx < eraTracks.length - 1) {
+        playTrack(eraTracks[currentIdx + 1], eraTracks);
+      } else {
+        // Loop back to start
+        playTrack(eraTracks[0], eraTracks);
+      }
     }
   };
 
-  // THE FIX: Completely wipe the queue and index when the player is closed!
-  const stopTrack = () => {
-    audioRef.current.pause();
+  const playPrevious = () => {
+    if (playlist.length > 0 && currentIndex > 0) {
+      playQueueTrack(currentIndex - 1);
+      return;
+    }
+
+    if (eraTracks.length > 0 && currentTrack) {
+      const currentIdx = eraTracks.findIndex((t) => t.id === currentTrack.id);
+      if (currentIdx > 0) {
+        playTrack(eraTracks[currentIdx - 1], eraTracks);
+      } else {
+        playTrack(eraTracks[eraTracks.length - 1], eraTracks);
+      }
+    }
+  };
+
+  const seek = (timeInSeconds) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = timeInSeconds;
+      setCurrentTime(timeInSeconds);
+    }
+  };
+
+  // New function to jump forward or backward by a specific amount of seconds
+  const seekBy = (amountInSeconds) => {
+    if (audioRef.current) {
+      let newTime = audioRef.current.currentTime + amountInSeconds;
+      if (newTime < 0) newTime = 0;
+      if (audioRef.current.duration && newTime > audioRef.current.duration) {
+        newTime = audioRef.current.duration;
+      }
+      audioRef.current.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
+  };
+
+  const closePlayer = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
     setIsPlaying(false);
     setCurrentTrack(null);
-    setPlaylist([]); // Clears the active queue entirely
-    setCurrentIndex(0); // Resets the math
-    localStorage.removeItem('safar_currentTime'); // Clears the saved time for a truly fresh start
-  };
-
-  const seek = (time) => {
-    audioRef.current.currentTime = time;
-    setCurrentTime(time);
+    setCurrentIndex(-1);
+    setCurrentTime(0);
+    setDuration(0);
   };
 
   return (
-    <AudioContext.Provider value={{
-      currentTrack, isPlaying, togglePlay, playTrack, addToQueue, removeFromQueue, playQueueTrack, 
-      nextTrack, prevTrack, playlist, currentIndex, stopTrack, currentTime, duration, seek 
-    }}>
+    <AudioContext.Provider
+      value={{
+        currentTrack,
+        isPlaying,
+        playlist,
+        currentIndex,
+        eraTracks,
+        currentTime,
+        duration,
+        togglePlay,
+        playTrack,
+        addToQueue,
+        removeFromQueue,
+        playQueueTrack,
+        playNext,
+        playPrevious,
+        seek,
+        seekBy,
+        closePlayer,
+      }}
+    >
       {children}
     </AudioContext.Provider>
   );
