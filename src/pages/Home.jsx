@@ -242,7 +242,7 @@ export default function Home() {
                     <div className="flex items-start gap-3 bg-white/60 p-3 rounded-xl shadow-sm">
                       <GraduationCap className="w-5 h-5 text-[#8E82E3] mt-0.5 shrink-0" />
                       <div>
-                        <h4 className="text-sm font-bold text-slate-800">LJ University</h4>
+                        <h4 className="text-sm font-bold text-slate-800">Marwadi University</h4>
                         <p className="text-xs text-slate-600 font-medium">BTech CS (AI & Data Science)</p>
                       </div>
                     </div>
@@ -250,7 +250,7 @@ export default function Home() {
                     <div className="flex items-start gap-3 bg-white/60 p-3 rounded-xl shadow-sm">
                       <MapPin className="w-5 h-5 text-[#8E82E3] mt-0.5 shrink-0" />
                       <div>
-                        <h4 className="text-sm font-bold text-slate-800">Ahmedabad, Gujarat</h4>
+                        <h4 className="text-sm font-bold text-slate-800">Rajkot, Gujarat</h4>
                         <p className="text-xs text-slate-600 font-medium">Actively exploring local tech & AI startups.</p>
                       </div>
                     </div>
