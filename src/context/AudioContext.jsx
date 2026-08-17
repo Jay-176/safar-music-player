@@ -38,6 +38,7 @@ export function AudioProvider({ children }) {
   const playlistRef = useRef(playlist);
   const currentIndexRef = useRef(currentIndex);
 
+  // Auto-sync state to local storage and Refs
   useEffect(() => {
     playlistRef.current = playlist;
     localStorage.setItem('safar_queue', JSON.stringify(playlist));
@@ -56,37 +57,41 @@ export function AudioProvider({ children }) {
     }
   }, [currentTrack]);
 
+  // Bulletproof Track Advancing
   const handleTrackEnd = () => {
     const queue = playlistRef.current;
     const idx = currentIndexRef.current;
 
     if (queue.length > 0) {
       if (idx === -1) {
+        // Start custom queue
         setCurrentIndex(0);
         setCurrentTrack(queue[0]);
         setIsPlaying(true);
       } else if (idx < queue.length - 1) {
+        // Next track in queue
         setCurrentIndex(idx + 1);
         setCurrentTrack(queue[idx + 1]);
         setIsPlaying(true);
       } else {
+        // End of queue
         setIsPlaying(false);
         setCurrentIndex(-1);
       }
     } else {
+      // No queue exists
       setIsPlaying(false);
       setCurrentIndex(-1);
     }
   };
 
+  // Sync native HTML5 audio events
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const onTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
-    const onLoadedMetadata = () => {
-      setDuration(audio.duration || 0);
-    };
+    const onLoadedMetadata = () => setDuration(audio.duration || 0);
     const onEnded = () => handleTrackEnd();
     const onError = (e) => {
       console.warn("Audio load error:", e);
@@ -106,6 +111,7 @@ export function AudioProvider({ children }) {
     };
   }, []);
 
+  // Handle Play/Pause execution
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -135,6 +141,7 @@ export function AudioProvider({ children }) {
     }
   }, [currentTrack, isPlaying]);
 
+  // Player Controls
   const playTrack = (track) => {
     setCurrentTrack(track);
     setCurrentIndex(-1);
@@ -150,9 +157,7 @@ export function AudioProvider({ children }) {
     }
   };
 
-  const addToQueue = (track) => {
-    setPlaylist((prev) => [...prev, track]);
-  };
+  const addToQueue = (track) => setPlaylist((prev) => [...prev, track]);
 
   const removeFromQueue = (index) => {
     setPlaylist((prev) => prev.filter((_, i) => i !== index));
@@ -171,6 +176,7 @@ export function AudioProvider({ children }) {
     setIsPlaying((prev) => !prev);
   };
 
+  // Skip buttons logic
   const playNext = () => handleTrackEnd();
 
   const playPrevious = () => {
@@ -178,6 +184,7 @@ export function AudioProvider({ children }) {
     if (idx > 0) {
       playQueueTrack(idx - 1);
     } else if (audioRef.current) {
+      // If no previous queue track exists, restart current song
       audioRef.current.currentTime = 0;
     }
   };
@@ -218,7 +225,6 @@ export function AudioProvider({ children }) {
       playNext,
       playPrevious
     }}>
-      {/* Global mounted audio element */}
       <audio ref={audioRef} preload="metadata" />
       {children}
     </AudioContext.Provider>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Play, Pause, SkipBack, SkipForward, X, Music2 } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 
@@ -22,11 +22,38 @@ export default function GlobalPlayer() {
     closePlayer
   } = useAudio();
 
+  // Handle Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if the user is typing in an input field (standard accessibility safety check)
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault(); // Prevents the page from scrolling down
+          togglePlayPause();
+          break;
+        case 'ArrowRight':
+          e.preventDefault(); // Prevents horizontal scrolling
+          seek(Math.min(currentTime + 5, duration || 0));
+          break;
+        case 'ArrowLeft':
+          e.preventDefault(); // Prevents horizontal scrolling
+          seek(Math.max(currentTime - 5, 0));
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [togglePlayPause, seek, currentTime, duration]);
+
   if (!currentTrack) return null;
 
   const handleSeekChange = (e) => {
-    const targetTime = parseFloat(e.target.value);
-    seek(targetTime);
+    seek(parseFloat(e.target.value));
   };
 
   return (
