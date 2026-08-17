@@ -67,7 +67,7 @@ export default function NayaDaur() {
       </AnimatePresence>
 
       <div className="absolute inset-0 w-full h-full overflow-hidden z-0">
-        <video autoPlay loop muted playsInline className="w-full h-full object-cover scale-110">
+        <video autoPlay loop muted playsInline className="w-full h-full object-cover scale-[1.30]">
           <source src="/videos/naya-daur.mp4" type="video/mp4" />
         </video>
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/20 to-black/50"></div>
@@ -207,6 +207,15 @@ export default function NayaDaur() {
           </motion.div>
         )}
       </AnimatePresence>
+
+{/* Fixed Bottom Left Footer */}
+<div className="fixed bottom-6 left-6 md:bottom-8 md:left-12 z-40 pointer-events-none">
+  <p className="text-white font-extrabold text-sm md:text-base tracking-widest drop-shadow-lg uppercase opacity-90 font-serif">
+    Music is Life
+  </p>
+</div>
+
+
     </PageShell>
   );
 }
