@@ -37,6 +37,9 @@ export function AudioProvider({ children }) {
   const audioRef = useRef(null);
   const playlistRef = useRef(playlist);
   const currentIndexRef = useRef(currentIndex);
+  
+  // NEW: Tracks exactly which song is currently loaded into the HTML audio element
+  const loadedTrackIdRef = useRef(null); 
 
   // Auto-sync state to local storage and Refs
   useEffect(() => {
@@ -111,15 +114,17 @@ export function AudioProvider({ children }) {
     };
   }, []);
 
-  // Handle Play/Pause execution
+  // Handle Play/Pause execution and prevent unwanted reloads
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     if (currentTrack?.src) {
-      if (audio.src !== currentTrack.src) {
+      // FIX: Check against the track ID instead of the URL string
+      if (loadedTrackIdRef.current !== currentTrack.id) {
         audio.src = currentTrack.src;
         audio.load();
+        loadedTrackIdRef.current = currentTrack.id; // Update our tracker
       }
 
       if (isPlaying) {
@@ -136,6 +141,7 @@ export function AudioProvider({ children }) {
     } else {
       audio.pause();
       audio.removeAttribute('src');
+      loadedTrackIdRef.current = null; // Clear the tracker
       setCurrentTime(0);
       setDuration(0);
     }
