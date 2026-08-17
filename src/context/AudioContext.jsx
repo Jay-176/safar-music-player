@@ -3,26 +3,38 @@ import React, { createContext, useState, useEffect, useRef, useContext } from 'r
 export const AudioContext = createContext();
 
 export function AudioProvider({ children }) {
-  // 1. Initialize State from Local Storage
   const [currentTrack, setCurrentTrack] = useState(() => {
-    const saved = localStorage.getItem('safar_track');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('safar_track');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
   const [playlist, setPlaylist] = useState(() => {
-    const saved = localStorage.getItem('safar_queue');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('safar_queue');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [currentIndex, setCurrentIndex] = useState(() => {
-    const saved = localStorage.getItem('safar_index');
-    return saved ? parseInt(saved, 10) : -1;
+    try {
+      const saved = localStorage.getItem('safar_index');
+      return saved !== null ? parseInt(saved, 10) : -1;
+    } catch {
+      return -1;
+    }
   });
 
   const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
-  // 2. Refs act as a "source of absolute truth" to prevent stale closures
+  const audioRef = useRef(null);
   const playlistRef = useRef(playlist);
   const currentIndexRef = useRef(currentIndex);
 
@@ -37,62 +49,92 @@ export function AudioProvider({ children }) {
   }, [currentIndex]);
 
   useEffect(() => {
-    if (currentTrack) localStorage.setItem('safar_track', JSON.stringify(currentTrack));
-    else localStorage.removeItem('safar_track');
+    if (currentTrack) {
+      localStorage.setItem('safar_track', JSON.stringify(currentTrack));
+    } else {
+      localStorage.removeItem('safar_track');
+    }
   }, [currentTrack]);
 
-  // 3. Bulletproof Auto-Advance Logic
   const handleTrackEnd = () => {
-    // Always read from the Ref to get real-time data, ignoring old memory
-    const currentQueue = playlistRef.current;
-    const currentIdx = currentIndexRef.current;
+    const queue = playlistRef.current;
+    const idx = currentIndexRef.current;
 
-    if (currentQueue.length > 0) {
-      if (currentIdx === -1) {
-        // A library track finished, start the custom queue
+    if (queue.length > 0) {
+      if (idx === -1) {
         setCurrentIndex(0);
-        setCurrentTrack(currentQueue[0]);
+        setCurrentTrack(queue[0]);
         setIsPlaying(true);
-      } else if (currentIdx < currentQueue.length - 1) {
-        // Move to the next track in the custom queue
-        setCurrentIndex(currentIdx + 1);
-        setCurrentTrack(currentQueue[currentIdx + 1]);
+      } else if (idx < queue.length - 1) {
+        setCurrentIndex(idx + 1);
+        setCurrentTrack(queue[idx + 1]);
         setIsPlaying(true);
       } else {
-        // The entire queue has finished
         setIsPlaying(false);
         setCurrentIndex(-1);
       }
     } else {
-      // No queue exists, stop playing completely
       setIsPlaying(false);
       setCurrentIndex(-1);
     }
   };
 
-  // Sync native HTML5 audio events
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    audio.addEventListener('ended', handleTrackEnd);
-    return () => audio.removeEventListener('ended', handleTrackEnd);
-  }, [currentIndex, playlist]);
+    const onTimeUpdate = () => setCurrentTime(audio.currentTime || 0);
+    const onLoadedMetadata = () => {
+      setDuration(audio.duration || 0);
+    };
+    const onEnded = () => handleTrackEnd();
+    const onError = (e) => {
+      console.warn("Audio load error:", e);
+      setIsPlaying(false);
+    };
+
+    audio.addEventListener('timeupdate', onTimeUpdate);
+    audio.addEventListener('loadedmetadata', onLoadedMetadata);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
+
+    return () => {
+      audio.removeEventListener('timeupdate', onTimeUpdate);
+      audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('error', onError);
+    };
+  }, []);
 
   useEffect(() => {
-    if (audioRef.current && currentTrack) {
-      if (isPlaying) {
-        audioRef.current.play().catch((err) => {
-          console.log("Autoplay blocked:", err);
-          setIsPlaying(false);
-        });
-      } else {
-        audioRef.current.pause();
-      }
-    }
-  }, [isPlaying, currentTrack]);
+    const audio = audioRef.current;
+    if (!audio) return;
 
-  // Core Audio Methods
+    if (currentTrack?.src) {
+      if (audio.src !== currentTrack.src) {
+        audio.src = currentTrack.src;
+        audio.load();
+      }
+
+      if (isPlaying) {
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.log("Audio playback waiting for user gesture:", err);
+            setIsPlaying(false);
+          });
+        }
+      } else {
+        audio.pause();
+      }
+    } else {
+      audio.pause();
+      audio.removeAttribute('src');
+      setCurrentTime(0);
+      setDuration(0);
+    }
+  }, [currentTrack, isPlaying]);
+
   const playTrack = (track) => {
     setCurrentTrack(track);
     setCurrentIndex(-1);
@@ -100,10 +142,10 @@ export function AudioProvider({ children }) {
   };
 
   const playQueueTrack = (index) => {
-    const currentQueue = playlistRef.current;
-    if (index >= 0 && index < currentQueue.length) {
+    const queue = playlistRef.current;
+    if (index >= 0 && index < queue.length) {
       setCurrentIndex(index);
-      setCurrentTrack(currentQueue[index]);
+      setCurrentTrack(queue[index]);
       setIsPlaying(true);
     }
   };
@@ -115,8 +157,7 @@ export function AudioProvider({ children }) {
   const removeFromQueue = (index) => {
     setPlaylist((prev) => prev.filter((_, i) => i !== index));
     const currentIdx = currentIndexRef.current;
-    
-    // Safety check using real-time Ref data
+
     if (currentIdx === index) {
       setCurrentIndex(-1);
       setIsPlaying(false);
@@ -125,26 +166,49 @@ export function AudioProvider({ children }) {
     }
   };
 
-  const togglePlayPause = () => setIsPlaying(!isPlaying);
+  const togglePlayPause = () => {
+    if (!currentTrack) return;
+    setIsPlaying((prev) => !prev);
+  };
 
-  // Expose the bulletproof end logic to manual skip buttons
-  const playNext = () => handleTrackEnd(); 
+  const playNext = () => handleTrackEnd();
 
   const playPrevious = () => {
-    const currentIdx = currentIndexRef.current;
-    if (currentIdx > 0) {
-      playQueueTrack(currentIdx - 1);
+    const idx = currentIndexRef.current;
+    if (idx > 0) {
+      playQueueTrack(idx - 1);
     } else if (audioRef.current) {
       audioRef.current.currentTime = 0;
     }
   };
 
+  const seek = (time) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
+  };
+
+  const closePlayer = () => {
+    setIsPlaying(false);
+    setCurrentTrack(null);
+    setCurrentIndex(-1);
+  };
+
   return (
     <AudioContext.Provider value={{
-      currentTrack, setCurrentTrack,
-      playlist, setPlaylist,
-      currentIndex, setCurrentIndex,
-      isPlaying, setIsPlaying,
+      currentTrack,
+      setCurrentTrack,
+      playlist,
+      setPlaylist,
+      currentIndex,
+      setCurrentIndex,
+      isPlaying,
+      setIsPlaying,
+      currentTime,
+      duration,
+      seek,
+      closePlayer,
       audioRef,
       playTrack,
       playQueueTrack,
@@ -154,6 +218,8 @@ export function AudioProvider({ children }) {
       playNext,
       playPrevious
     }}>
+      {/* Global mounted audio element */}
+      <audio ref={audioRef} preload="metadata" />
       {children}
     </AudioContext.Provider>
   );
