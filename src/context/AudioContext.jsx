@@ -1,87 +1,111 @@
-import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
+import React, { createContext, useState, useEffect, useRef, useContext } from 'react';
 
 export const AudioContext = createContext();
 
-export const useAudio = () => useContext(AudioContext);
+export function AudioProvider({ children }) {
+  // 1. Initialize State from Local Storage
+  const [currentTrack, setCurrentTrack] = useState(() => {
+    const saved = localStorage.getItem('safar_track');
+    return saved ? JSON.parse(saved) : null;
+  });
 
-export const AudioProvider = ({ children }) => {
-  const [currentTrack, setCurrentTrack] = useState(null);
+  const [playlist, setPlaylist] = useState(() => {
+    const saved = localStorage.getItem('safar_queue');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    const saved = localStorage.getItem('safar_index');
+    return saved ? parseInt(saved, 10) : -1;
+  });
+
   const [isPlaying, setIsPlaying] = useState(false);
-  const [playlist, setPlaylist] = useState([]); // Active Queue
-  const [currentIndex, setCurrentIndex] = useState(-1); // -1 means playing from library
-  const [eraTracks, setEraTracks] = useState([]); 
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const audioRef = useRef(null);
 
-  const audioRef = useRef(new Audio());
+  // 2. Refs act as a "source of absolute truth" to prevent stale closures
+  const playlistRef = useRef(playlist);
+  const currentIndexRef = useRef(currentIndex);
 
-  // Load persistent queue from local storage
   useEffect(() => {
-    const savedQueue = localStorage.getItem('safarQueue');
-    if (savedQueue) {
-      try {
-        setPlaylist(JSON.parse(savedQueue));
-      } catch (e) {
-        console.error("Failed to parse saved queue", e);
-      }
-    }
-  }, []);
-
-  // Save queue changes to local storage
-  useEffect(() => {
-    localStorage.setItem('safarQueue', JSON.stringify(playlist));
+    playlistRef.current = playlist;
+    localStorage.setItem('safar_queue', JSON.stringify(playlist));
   }, [playlist]);
 
-  // Handle track source changes
   useEffect(() => {
-    const audio = audioRef.current;
+    currentIndexRef.current = currentIndex;
+    localStorage.setItem('safar_index', currentIndex.toString());
+  }, [currentIndex]);
 
-    if (currentTrack?.src) {
-      audio.src = currentTrack.src;
-      audio.load();
-      audio.play()
-        .then(() => setIsPlaying(true))
-        .catch((err) => {
-          console.warn("Autoplay prevented or audio source error:", err);
-          setIsPlaying(false);
-        });
-    }
-
-    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const handleLoadedMetadata = () => setDuration(audio.duration || 0);
-    const handleEnded = () => playNext();
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('ended', handleEnded);
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('ended', handleEnded);
-    };
+  useEffect(() => {
+    if (currentTrack) localStorage.setItem('safar_track', JSON.stringify(currentTrack));
+    else localStorage.removeItem('safar_track');
   }, [currentTrack]);
 
-  const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!currentTrack) return;
+  // 3. Bulletproof Auto-Advance Logic
+  const handleTrackEnd = () => {
+    // Always read from the Ref to get real-time data, ignoring old memory
+    const currentQueue = playlistRef.current;
+    const currentIdx = currentIndexRef.current;
 
-    if (isPlaying) {
-      audio.pause();
-      setIsPlaying(false);
+    if (currentQueue.length > 0) {
+      if (currentIdx === -1) {
+        // A library track finished, start the custom queue
+        setCurrentIndex(0);
+        setCurrentTrack(currentQueue[0]);
+        setIsPlaying(true);
+      } else if (currentIdx < currentQueue.length - 1) {
+        // Move to the next track in the custom queue
+        setCurrentIndex(currentIdx + 1);
+        setCurrentTrack(currentQueue[currentIdx + 1]);
+        setIsPlaying(true);
+      } else {
+        // The entire queue has finished
+        setIsPlaying(false);
+        setCurrentIndex(-1);
+      }
     } else {
-      audio.play()
-        .then(() => setIsPlaying(true))
-        .catch(console.error);
+      // No queue exists, stop playing completely
+      setIsPlaying(false);
+      setCurrentIndex(-1);
     }
   };
 
-  const playTrack = (track, currentEraTracks = []) => {
-    setCurrentTrack(track);
-    if (currentEraTracks.length > 0) {
-      setEraTracks(currentEraTracks);
+  // Sync native HTML5 audio events
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    audio.addEventListener('ended', handleTrackEnd);
+    return () => audio.removeEventListener('ended', handleTrackEnd);
+  }, [currentIndex, playlist]);
+
+  useEffect(() => {
+    if (audioRef.current && currentTrack) {
+      if (isPlaying) {
+        audioRef.current.play().catch((err) => {
+          console.log("Autoplay blocked:", err);
+          setIsPlaying(false);
+        });
+      } else {
+        audioRef.current.pause();
+      }
     }
+  }, [isPlaying, currentTrack]);
+
+  // Core Audio Methods
+  const playTrack = (track) => {
+    setCurrentTrack(track);
     setCurrentIndex(-1);
+    setIsPlaying(true);
+  };
+
+  const playQueueTrack = (index) => {
+    const currentQueue = playlistRef.current;
+    if (index >= 0 && index < currentQueue.length) {
+      setCurrentIndex(index);
+      setCurrentTrack(currentQueue[index]);
+      setIsPlaying(true);
+    }
   };
 
   const addToQueue = (track) => {
@@ -90,117 +114,49 @@ export const AudioProvider = ({ children }) => {
 
   const removeFromQueue = (index) => {
     setPlaylist((prev) => prev.filter((_, i) => i !== index));
-    if (currentIndex === index) {
-      closePlayer();
-    } else if (currentIndex > index) {
-      setCurrentIndex(currentIndex - 1);
+    const currentIdx = currentIndexRef.current;
+    
+    // Safety check using real-time Ref data
+    if (currentIdx === index) {
+      setCurrentIndex(-1);
+      setIsPlaying(false);
+    } else if (currentIdx > index) {
+      setCurrentIndex(currentIdx - 1);
     }
   };
 
-  const playQueueTrack = (index) => {
-    if (playlist[index]) {
-      setCurrentIndex(index);
-      setCurrentTrack(playlist[index]);
-    }
-  };
+  const togglePlayPause = () => setIsPlaying(!isPlaying);
 
-  const playNext = () => {
-    // 1. Always check the Active Queue first
-    if (playlist.length > 0) {
-      if (currentIndex === -1) {
-        // If playing from library, jump into the first song of the queue
-        playQueueTrack(0);
-        return;
-      } else if (currentIndex < playlist.length - 1) {
-        // If already in queue, go to the next song in the queue
-        playQueueTrack(currentIndex + 1);
-        return;
-      }
-    }
-
-    // 2. If queue is empty OR we finished the queue, play next from Era Library
-    if (eraTracks.length > 0 && currentTrack) {
-      const currentIdx = eraTracks.findIndex((t) => t.id === currentTrack.id);
-      if (currentIdx !== -1 && currentIdx < eraTracks.length - 1) {
-        playTrack(eraTracks[currentIdx + 1], eraTracks);
-      } else {
-        // Loop back to start
-        playTrack(eraTracks[0], eraTracks);
-      }
-    }
-  };
+  // Expose the bulletproof end logic to manual skip buttons
+  const playNext = () => handleTrackEnd(); 
 
   const playPrevious = () => {
-    if (playlist.length > 0 && currentIndex > 0) {
-      playQueueTrack(currentIndex - 1);
-      return;
-    }
-
-    if (eraTracks.length > 0 && currentTrack) {
-      const currentIdx = eraTracks.findIndex((t) => t.id === currentTrack.id);
-      if (currentIdx > 0) {
-        playTrack(eraTracks[currentIdx - 1], eraTracks);
-      } else {
-        playTrack(eraTracks[eraTracks.length - 1], eraTracks);
-      }
-    }
-  };
-
-  const seek = (timeInSeconds) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = timeInSeconds;
-      setCurrentTime(timeInSeconds);
-    }
-  };
-
-  // New function to jump forward or backward by a specific amount of seconds
-  const seekBy = (amountInSeconds) => {
-    if (audioRef.current) {
-      let newTime = audioRef.current.currentTime + amountInSeconds;
-      if (newTime < 0) newTime = 0;
-      if (audioRef.current.duration && newTime > audioRef.current.duration) {
-        newTime = audioRef.current.duration;
-      }
-      audioRef.current.currentTime = newTime;
-      setCurrentTime(newTime);
-    }
-  };
-
-  const closePlayer = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
+    const currentIdx = currentIndexRef.current;
+    if (currentIdx > 0) {
+      playQueueTrack(currentIdx - 1);
+    } else if (audioRef.current) {
       audioRef.current.currentTime = 0;
     }
-    setIsPlaying(false);
-    setCurrentTrack(null);
-    setCurrentIndex(-1);
-    setCurrentTime(0);
-    setDuration(0);
   };
 
   return (
-    <AudioContext.Provider
-      value={{
-        currentTrack,
-        isPlaying,
-        playlist,
-        currentIndex,
-        eraTracks,
-        currentTime,
-        duration,
-        togglePlay,
-        playTrack,
-        addToQueue,
-        removeFromQueue,
-        playQueueTrack,
-        playNext,
-        playPrevious,
-        seek,
-        seekBy,
-        closePlayer,
-      }}
-    >
+    <AudioContext.Provider value={{
+      currentTrack, setCurrentTrack,
+      playlist, setPlaylist,
+      currentIndex, setCurrentIndex,
+      isPlaying, setIsPlaying,
+      audioRef,
+      playTrack,
+      playQueueTrack,
+      addToQueue,
+      removeFromQueue,
+      togglePlayPause,
+      playNext,
+      playPrevious
+    }}>
       {children}
     </AudioContext.Provider>
   );
-};
+}
+
+export const useAudio = () => useContext(AudioContext);
